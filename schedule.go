@@ -9,28 +9,31 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 const tmFmt = "02/01/2006 15:04"
 
-
 type participant struct {
-	Id int
-	Timestamp time.Time
-	Email string
-	Name string
-	AgeRange string
-	Skype string
-	Disability string
+	Id          int
+	Timestamp   time.Time
+	Email       string
+	Name        string
+	AgeRange    string
+	Skype       string
+	Disability  string
 	Preferences []string
-	Assigned string
+
+	// these fields are calculated by us when we schedule
+	Assigned     string
 	AssignedSlot int
 	AssignedTime time.Time
 }
 
 var numSlots = 5
-var startTime = time.Date(2020, 3, 6, 10, 0,0,0,time.UTC)
-var startTimeKesia = time.Date(2020, 3, 5, 10, 0,0,0,time.UTC)
+var startTime = time.Date(2021, 3, 6, 10, 0, 0, 0, time.UTC)
+var startTimeKesia = time.Date(2021, 3, 5, 10, 0, 0, 0, time.UTC)
 
 func loadSched(f io.Reader) (particpants []participant) {
 	r := csv.NewReader(f)
@@ -49,13 +52,13 @@ func loadSched(f io.Reader) (particpants []participant) {
 		tm, err := time.Parse("01/02/2006 15:14:05", row[0])
 
 		p := participant{
-			Id : id,
-			Timestamp:   tm,
-			Email:       row[1],
-			Name:        row[2],
-			AgeRange:    row[3],
-			Skype: row[4],
-			Disability:    row[5],
+			Id:         id,
+			Timestamp:  tm,
+			Email:      row[1],
+			Name:       row[2],
+			AgeRange:   row[3],
+			Skype:      row[4],
+			Disability: row[5],
 		}
 		id++
 		for i := 6; i < len(row); i++ {
@@ -65,7 +68,6 @@ func loadSched(f io.Reader) (particpants []participant) {
 	}
 	return particpants
 }
-
 
 func getAgents(participants []participant) map[string][]int {
 	agents := make(map[string][]int)
@@ -77,7 +79,7 @@ func getAgents(participants []participant) map[string][]int {
 	return agents
 }
 
-func slotToTime( slot int, agent string) time.Time{
+func slotToTime(slot int, agent string) time.Time {
 	start := startTime
 	if strings.Contains(agent, "Friday") {
 		start = startTimeKesia
@@ -94,7 +96,7 @@ func schedule(agents map[string][]int, participants []participant) {
 				agents[a] = append(agents[a], p.Id)
 				p.AssignedSlot = len(agents[a])
 				p.AssignedTime = slotToTime(p.AssignedSlot, a)
-				endTime :=p.AssignedTime.Add(30*(time.Minute))
+				endTime := p.AssignedTime.Add(30 * (time.Minute))
 				participants[i] = p
 				//endTime := p.AssignedTime.Add(30*time.Minute)
 				log.Println("Scheduled", p.Name, p.Skype, a, p.AssignedTime.Weekday(),
@@ -110,10 +112,20 @@ func schedule(agents map[string][]int, participants []participant) {
 
 func dumpAgents(agents map[string][]int, participants []participant) {
 	for a, bookings := range agents {
-		fmt.Println("\n", a)
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"Time", "Name", "Age range", "Skype ID"})
 		for _, b := range bookings {
-			fmt.Println("  ", participants[b].AssignedTime.Format("15:04"), participants[b].Name)
+			p := participants[b]
+			table.Append([]string{
+				p.AssignedTime.Format("15:04"),
+				p.Name,
+				"(" + p.AgeRange + ")",
+				p.Skype,
+			})
 		}
+		fmt.Println(a)
+		table.Render()
+		fmt.Println()
 	}
 }
 
