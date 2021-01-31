@@ -14,7 +14,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-const tmFmt = "02/01/2006 15:04"
+const (
+	tmFmt = "02/01/2006 15:04"
+)
 
 type participant struct {
 	Id          int
@@ -36,7 +38,13 @@ var numSlots = 5
 var startTime = time.Date(2021, 3, 6, 10, 0, 0, 0, time.UTC)
 var startTimeKesia = time.Date(2021, 3, 5, 10, 0, 0, 0, time.UTC)
 
-func loadSched(f io.Reader) (particpants []participant) {
+func loadSched(fn string) (particpants []participant) {
+	f, err := os.Open(fn)
+	if err != nil {
+		log.Fatal(f)
+	}
+	defer f.Close()
+
 	r := csv.NewReader(f)
 
 	// skip headers
@@ -126,7 +134,9 @@ func dumpAgents(agents map[string][]int, participants []participant) {
 	}
 
 	for a, bookings := range agents {
-
+		if len(bookings) == 0 {
+			continue
+		}
 		data := struct {
 			Agent string
 			Date  string
@@ -154,15 +164,17 @@ func dumpAgents(agents map[string][]int, participants []participant) {
 }
 
 func main() {
-	bf := flag.String("b", "testdata/booking.csv", "booking file in csv format")
+	bf := flag.String("csv", "testdata/booking.csv", "booking file in csv format")
+	spreadsheetId := flag.String("s", "1sizDYdctXcLyzO5g9TKiGmEWKBWdfM3nhUIrpX1dYWg",
+		"Google Spreadsheet ID")
 	flag.Parse()
 
-	f, err := os.Open(*bf)
-	if err != nil {
-		log.Fatal(f)
+	particpants := []participant{}
+	if *bf != "" {
+		particpants = loadSched(*bf)
 	}
-	defer f.Close()
-	particpants := loadSched(f)
+
+	particpants = getGSheetsData(*spreadsheetId)
 	agents := getAgents(particpants)
 
 	schedule(agents, particpants)
