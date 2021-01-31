@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -153,7 +154,7 @@ func dumpAgents(agents map[string][]int, participants []participant) {
 				p.AssignedTime.Format("15:04"),
 				p.Name,
 				"(" + p.AgeRange + ")",
-				p.Skype,
+				strconv.Quote(p.Skype),
 			})
 		}
 		fmt.Println(a)
