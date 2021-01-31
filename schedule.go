@@ -20,7 +20,6 @@ const (
 )
 
 type participant struct {
-	Id          int
 	Timestamp   time.Time
 	Email       string
 	Name        string
@@ -61,7 +60,6 @@ func loadSched(fn string) (particpants []participant) {
 		tm, err := time.Parse("01/02/2006 15:14:05", row[0])
 
 		p := participant{
-			Id:         len(particpants),
 			Timestamp:  tm,
 			Email:      row[1],
 			Name:       row[2],
@@ -77,8 +75,8 @@ func loadSched(fn string) (particpants []participant) {
 	return particpants
 }
 
-func getAgents(participants []participant) map[string][]int {
-	agents := make(map[string][]int)
+func getAgents(participants []participant) map[string][]*participant {
+	agents := make(map[string][]*participant)
 	for _, p := range participants {
 		for _, a := range p.Preferences {
 			agents[a] = nil
@@ -95,13 +93,13 @@ func slotToTime(slot int, agent string) time.Time {
 	return start.Add(time.Duration(slot-1) * 30 * time.Minute)
 }
 
-func schedule(agents map[string][]int, participants []participant) {
+func schedule(agents map[string][]*participant, participants []participant) {
 	for i, p := range participants {
 		for _, a := range p.Preferences {
 
 			if len(agents[a]) < numSlots {
 				p.Assigned = a
-				agents[a] = append(agents[a], p.Id)
+				agents[a] = append(agents[a], &participants[i])
 				p.AssignedSlot = len(agents[a])
 				p.AssignedTime = slotToTime(p.AssignedSlot, a)
 				endTime := p.AssignedTime.Add(30 * (time.Minute))
@@ -125,7 +123,7 @@ With regards,
 Festival Organisers
 `
 
-func dumpAgents(agents map[string][]int, participants []participant) {
+func dumpAgents(agents map[string][]*participant, participants []participant) {
 	t, err := template.New("email").Parse(emailTemplate)
 	if err != nil {
 		log.Fatal(err)
@@ -144,8 +142,7 @@ func dumpAgents(agents map[string][]int, participants []participant) {
 
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Time", "Name", "Age range", "Skype ID"})
-		for _, b := range bookings {
-			p := participants[b]
+		for _, p := range bookings {
 			data.Date = p.AssignedTime.Format("Mon 2 Jan")
 			table.Append([]string{
 				p.AssignedTime.Format("15:04"),

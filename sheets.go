@@ -108,7 +108,6 @@ func getGSheetsData(spreadsheetId string) []participant {
 			}
 
 			p := participant{
-				Id:         len(participants),
 				Timestamp:  tm,
 				Email:      row[1].(string),
 				Name:       row[2].(string),
