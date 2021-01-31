@@ -50,7 +50,6 @@ func loadSched(fn string) (particpants []participant) {
 
 	// skip headers
 	r.Read()
-	id := 0
 	for {
 		row, err := r.Read()
 		if err == io.EOF {
@@ -62,7 +61,7 @@ func loadSched(fn string) (particpants []participant) {
 		tm, err := time.Parse("01/02/2006 15:14:05", row[0])
 
 		p := participant{
-			Id:         id,
+			Id:         len(particpants),
 			Timestamp:  tm,
 			Email:      row[1],
 			Name:       row[2],
@@ -70,7 +69,6 @@ func loadSched(fn string) (particpants []participant) {
 			Skype:      row[4],
 			Disability: row[5],
 		}
-		id++
 		for i := 6; i < len(row); i++ {
 			p.Preferences = append(p.Preferences, row[i])
 		}
@@ -108,7 +106,6 @@ func schedule(agents map[string][]int, participants []participant) {
 				p.AssignedTime = slotToTime(p.AssignedSlot, a)
 				endTime := p.AssignedTime.Add(30 * (time.Minute))
 				participants[i] = p
-				//endTime := p.AssignedTime.Add(30*time.Minute)
 				log.Println("Scheduled", p.Name, p.Skype, a, p.AssignedTime.Weekday(),
 					p.AssignedTime.Format(tmFmt), "-", endTime.Format("15:04"))
 				break

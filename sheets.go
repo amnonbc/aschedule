@@ -97,7 +97,6 @@ func getGSheetsData(spreadsheetId string) []participant {
 	if len(resp.Values) == 0 {
 		fmt.Println("No data found.")
 	} else {
-		id := 0
 		for _, row := range resp.Values {
 			if row[0].(string) == "Timestamp" {
 				// skip header
@@ -109,7 +108,7 @@ func getGSheetsData(spreadsheetId string) []participant {
 			}
 
 			p := participant{
-				Id:         id,
+				Id:         len(participants),
 				Timestamp:  tm,
 				Email:      row[1].(string),
 				Name:       row[2].(string),
@@ -117,7 +116,6 @@ func getGSheetsData(spreadsheetId string) []participant {
 				Skype:      row[4].(string),
 				Disability: row[5].(string),
 			}
-			id++
 			for i := 6; i < len(row); i++ {
 				p.Preferences = append(p.Preferences, row[i].(string))
 			}
