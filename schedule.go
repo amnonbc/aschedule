@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
@@ -110,12 +111,34 @@ func schedule(agents map[string][]int, participants []participant) {
 	}
 }
 
+const emailTemplate = `
+Dear {{ .Agent }},
+Please find below a table with the schedule for your 1-1 meetings on {{ .Date }}. Just to remind you that each 
+meeting lasts for 15 minutes, giving you a 15 minute break between each one.
+With regards,
+Festival Organisers
+`
+
 func dumpAgents(agents map[string][]int, participants []participant) {
+	t, err := template.New("email").Parse(emailTemplate)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for a, bookings := range agents {
+
+		data := struct {
+			Agent string
+			Date  string
+		}{
+			Agent: a,
+		}
+
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Time", "Name", "Age range", "Skype ID"})
 		for _, b := range bookings {
 			p := participants[b]
+			data.Date = p.AssignedTime.Format("Mon 2 Jan")
 			table.Append([]string{
 				p.AssignedTime.Format("15:04"),
 				p.Name,
@@ -124,6 +147,7 @@ func dumpAgents(agents map[string][]int, participants []participant) {
 			})
 		}
 		fmt.Println(a)
+		t.Execute(os.Stdout, data)
 		table.Render()
 		fmt.Println()
 	}
