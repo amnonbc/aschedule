@@ -93,18 +93,33 @@ func slotToTime(slot int, agent string) time.Time {
 	return start.Add(time.Duration(slot-1) * 30 * time.Minute)
 }
 
-func schedule(agents map[string][]*participant, participants []participant) {
-	for i, p := range participants {
-		for _, a := range p.Preferences {
+func (p participant) FormatTime() string {
+	endTime := p.AssignedTime.Add(15 * (time.Minute))
+	return p.AssignedTime.Format("15:04") + " - " + endTime.Format("15:04")
+}
 
+func (p participant) FormatDate() string {
+	return p.AssignedTime.Format("Mon 2 Jan")
+}
+
+func schedule(agents map[string][]*participant, participants []participant) {
+	done := make(map[string]int)
+	for i, p := range participants {
+		if done[p.Email] > 1 {
+			log.Println("Inoring entry", done[p.Email], "from", p.Name, p.Email)
+			continue
+		}
+
+		for _, a := range p.Preferences {
+			done[p.Email] += 1
 			if len(agents[a]) < numSlots {
 				p.Assigned = a
 				agents[a] = append(agents[a], &participants[i])
 				p.AssignedSlot = len(agents[a])
 				p.AssignedTime = slotToTime(p.AssignedSlot, a)
-				endTime := p.AssignedTime.Add(30 * (time.Minute))
+				endTime := p.AssignedTime.Add(15 * (time.Minute))
 				participants[i] = p
-				log.Println("Scheduled", p.Name, p.Skype, a, p.AssignedTime.Weekday(),
+				log.Println("Scheduled", p.Timestamp.Format("15:04:05"), p.Name, p.Skype, a, p.AssignedTime.Weekday(),
 					p.AssignedTime.Format(tmFmt), "-", endTime.Format("15:04"))
 				break
 			}
@@ -158,6 +173,48 @@ func dumpAgents(agents map[string][]*participant, participants []participant) {
 	}
 }
 
+func dumpAllParticpants(participants []participant) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Name", "Agent", "Age Range", "slot"})
+	for _, p := range participants {
+		table.Append([]string{
+			p.Name,
+			p.Assigned,
+			p.AgeRange,
+			p.AssignedTime.Format("Mon 15:04"),
+		})
+	}
+	table.Render()
+}
+
+var toWriter = template.Must(template.ParseFiles("towriter.txt"))
+
+func printLetterToWriter(p participant) {
+	toWriter.Execute(os.Stdout, p)
+}
+
+func printAgentNumbers(agents map[string][]*participant) {
+	fmt.Println("")
+	fmt.Println("AGENTS")
+	for a, p := range agents {
+		fmt.Println(a, len(p))
+	}
+}
+
+func printPeopleWithoutAgents(participants []participant) {
+	without := 0
+	fmt.Println("\nPeople without Agents")
+	for _, p := range participants {
+		if p.Assigned != "" {
+			continue
+		}
+		fmt.Println(p.Name, p.Email)
+		without++
+	}
+
+	fmt.Println(without, "writers without agents, out of", len(participants))
+}
+
 func main() {
 	bf := flag.String("csv", "testdata/booking.csv", "booking file in csv format")
 	spreadsheetId := flag.String("s", "1sizDYdctXcLyzO5g9TKiGmEWKBWdfM3nhUIrpX1dYWg",
@@ -174,5 +231,15 @@ func main() {
 
 	schedule(agents, particpants)
 
+	for _, p := range particpants {
+		printLetterToWriter(p)
+	}
+
 	dumpAgents(agents, particpants)
+
+	dumpAllParticpants(particpants)
+
+	printAgentNumbers(agents)
+
+	printPeopleWithoutAgents(particpants)
 }
