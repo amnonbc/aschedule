@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -75,8 +76,8 @@ func loadSched(fn string) (particpants []participant) {
 	return particpants
 }
 
-func getAgents(participants []participant) map[string][]*participant {
-	agents := make(map[string][]*participant)
+func getAgents(participants []participant) map[string][]participant {
+	agents := make(map[string][]participant)
 	for _, p := range participants {
 		for _, a := range p.Preferences {
 			agents[a] = nil
@@ -102,7 +103,7 @@ func (p participant) FormatDate() string {
 	return p.AssignedTime.Format("Mon 2 Jan")
 }
 
-func schedule(agents map[string][]*participant, participants []participant) {
+func schedule(agents map[string][]participant, participants []participant) {
 	done := make(map[string]int)
 	for i, p := range participants {
 		if done[p.Email] > 1 {
@@ -114,11 +115,11 @@ func schedule(agents map[string][]*participant, participants []participant) {
 			done[p.Email] += 1
 			if len(agents[a]) < numSlots {
 				p.Assigned = a
-				agents[a] = append(agents[a], &participants[i])
 				p.AssignedSlot = len(agents[a])
 				p.AssignedTime = slotToTime(p.AssignedSlot, a)
 				endTime := p.AssignedTime.Add(15 * (time.Minute))
 				participants[i] = p
+				agents[a] = append(agents[a], participants[i])
 				log.Println("Scheduled", p.Timestamp.Format("15:04:05"), p.Name, p.Skype, a, p.AssignedTime.Weekday(),
 					p.AssignedTime.Format(tmFmt), "-", endTime.Format("15:04"))
 				break
@@ -138,7 +139,7 @@ With regards,
 Festival Organisers
 `
 
-func dumpAgents(agents map[string][]*participant, participants []participant) {
+func dumpAgents(agents map[string][]participant) {
 	t, err := template.New("email").Parse(emailTemplate)
 	if err != nil {
 		log.Fatal(err)
@@ -162,7 +163,7 @@ func dumpAgents(agents map[string][]*participant, participants []participant) {
 			table.Append([]string{
 				p.AssignedTime.Format("15:04"),
 				p.Name,
-				"(" + p.AgeRange + ")",
+				p.AgeRange,
 				strconv.Quote(p.Skype),
 			})
 		}
@@ -174,6 +175,9 @@ func dumpAgents(agents map[string][]*participant, participants []participant) {
 }
 
 func dumpAllParticpants(participants []participant) {
+	sort.Slice(participants, func(i, j int) bool {
+		return participants[i].Name < participants[j].Name
+	})
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"Name", "email", "Agent", "Age Range", "slot"})
 	for _, p := range participants {
@@ -194,7 +198,7 @@ func printLetterToWriter(p participant) {
 	toWriter.Execute(os.Stdout, p)
 }
 
-func printAgentNumbers(agents map[string][]*participant, participants []participant) {
+func printAgentNumbers(agents map[string][]participant, participants []participant) {
 	choices := make(map[string][]int)
 	for _, p := range participants {
 		for i, c := range p.Preferences {
@@ -262,7 +266,7 @@ func main() {
 		printLetterToWriter(p)
 	}
 
-	dumpAgents(agents, particpants)
+	dumpAgents(agents)
 
 	dumpAllParticpants(particpants)
 
