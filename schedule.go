@@ -175,10 +175,11 @@ func dumpAgents(agents map[string][]*participant, participants []participant) {
 
 func dumpAllParticpants(participants []participant) {
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Name", "Agent", "Age Range", "slot"})
+	table.SetHeader([]string{"Name", "email", "Agent", "Age Range", "slot"})
 	for _, p := range participants {
 		table.Append([]string{
 			p.Name,
+			p.Email,
 			p.Assigned,
 			p.AgeRange,
 			p.AssignedTime.Format("Mon 15:04"),
@@ -193,12 +194,38 @@ func printLetterToWriter(p participant) {
 	toWriter.Execute(os.Stdout, p)
 }
 
-func printAgentNumbers(agents map[string][]*participant) {
-	fmt.Println("")
-	fmt.Println("AGENTS")
-	for a, p := range agents {
-		fmt.Println(a, len(p))
+func printAgentNumbers(agents map[string][]*participant, participants []participant) {
+	choices := make(map[string][]int)
+	for _, p := range participants {
+		for i, c := range p.Preferences {
+			if choices[c] == nil {
+				choices[c] = make([]int, 5)
+			}
+			choices[c][i]++
+		}
 	}
+
+	selected := make(map[string]int)
+	for _, p := range participants {
+		for _, c := range p.Preferences {
+			selected[c]++
+		}
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Name", "selected", "1st", "2nd", "3rd", "4th", "5th"})
+	for a, w := range agents {
+		row := []string{
+			a,
+			strconv.Itoa(len(w)),
+		}
+		for _, c := range choices[a] {
+			row = append(row, strconv.Itoa(c))
+		}
+		table.Append(row)
+	}
+	table.Render()
+
 }
 
 func printPeopleWithoutAgents(participants []participant) {
@@ -239,7 +266,7 @@ func main() {
 
 	dumpAllParticpants(particpants)
 
-	printAgentNumbers(agents)
+	printAgentNumbers(agents, particpants)
 
 	printPeopleWithoutAgents(particpants)
 }
