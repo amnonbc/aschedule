@@ -211,13 +211,14 @@ SCBWI Industry Insider Organisers
 var agentEmailT = template.Must(template.New("email").Parse(emailTemplate))
 
 func writeAgentBookings(tb tabler, bookings []participant) {
-	tb.SetHeader([]string{"Time", "Name", "Age range", "Skype ID"})
+	tb.SetHeader([]string{"Time", "Name", "Age range", "Skype ID", "Email"})
 	for _, p := range bookings {
 		tb.Append([]string{
 			p.AssignedTime.Format("15:04"),
 			p.Name,
 			p.AgeRange,
 			strconv.Quote(p.Skype),
+			p.Email,
 		})
 	}
 	tb.Render()
