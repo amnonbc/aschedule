@@ -104,7 +104,8 @@ func getGSheetsData(spreadsheetId string) []participant {
 			}
 			tm, err := time.Parse("1/2/2006 15:04:05", row[0].(string))
 			if err != nil {
-				log.Fatalln(err)
+				log.Printf("Could not parse date %q, %s, skipping line %v", row[0], err, row)
+				continue
 			}
 
 			p := participant{

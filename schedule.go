@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/amnonbc/aschedule/htmltable"
+	"github.com/amnonbc/aschedule/trymail"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -37,6 +39,7 @@ type participant struct {
 	AssignedSlot   int
 	AssignedTime   time.Time
 	AssignedChoice int
+	DropBoxUpload  string
 }
 
 type tabler interface {
@@ -44,6 +47,13 @@ type tabler interface {
 	Append(row []string)
 	Render()
 }
+
+type DropBox struct {
+	Upload   string
+	Download string
+}
+
+var dropBox = make(map[string]DropBox)
 
 var startTime = time.Date(2021, 3, 6, 10, 0, 0, 0, time.UTC)
 var startTimeKesia = time.Date(2021, 3, 5, 10, 0, 0, 0, time.UTC)
@@ -53,6 +63,32 @@ func numSlots(agent string) int {
 		return 7
 	}
 	return 5
+}
+
+func loadDropBox(fn string) {
+	f, err := os.Open(fn)
+	if err != nil {
+		log.Fatal(f)
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	// skip headers
+	r.Read()
+	for {
+		row, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		dropBox[row[0]] = DropBox{
+			Upload:   row[1],
+			Download: row[2],
+		}
+	}
+
 }
 
 func loadSched(fn string) (particpants []participant) {
@@ -138,6 +174,10 @@ func schedule(agents map[string][]participant, participants []participant) {
 				p.Assigned = a
 				p.AssignedChoice = j + 1
 				p.AssignedSlot = len(agents[a])
+				p.DropBoxUpload = dropBox[a].Upload
+				if p.DropBoxUpload == "" {
+					log.Fatalln("could not find dropbox upload for agent", a)
+				}
 				p.AssignedTime = slotToTime(p.AssignedSlot, a)
 				endTime := p.AssignedTime.Add(15 * (time.Minute))
 				participants[i] = p
@@ -154,11 +194,18 @@ func schedule(agents map[string][]participant, participants []participant) {
 }
 
 const emailTemplate = `
-Dear {{ .Agent }},
+Dear {{ .Agent }},<br>
 Please find below a table with the schedule for your 1-1 meetings on {{ .Date }}. Just to remind you that each 
 meeting lasts for 15 minutes, giving you a 15 minute break between each one.
-With regards,
-Festival Organisers
+<p>
+We have asked the participants to upload their manuscripts to a Dropbox folder,.
+by Wednesday 17th February.
+<p>
+You can download these submissions via the link <a href="{{.DropBox}}">{{.DropBox}}</a>.
+<p>
+With regards,<br>
+Camilla Chester and Mandy Rabin<br>
+SCBWI Industry Insider Organisers
 `
 
 var agentEmailT = template.Must(template.New("email").Parse(emailTemplate))
@@ -176,16 +223,24 @@ func writeAgentBookings(tb tabler, bookings []participant) {
 	tb.Render()
 }
 
+var toWriterTmpl = template.Must(template.ParseFiles("mail_to_writer.html"))
+
+func writeLetterToWriter(w io.Writer, p participant) {
+	toWriterTmpl.Execute(w, p)
+}
+
 func dumpAgent(w io.Writer, tb tabler, a string, bookings []participant) {
 	if len(bookings) == 0 {
 		return
 	}
 	data := struct {
-		Agent string
-		Date  string
+		Agent   string
+		Date    string
+		DropBox string
 	}{
-		Agent: a,
-		Date:  bookings[0].AssignedTime.Format("Mon 2 Jan"),
+		Agent:   a,
+		Date:    bookings[0].AssignedTime.Format("Mon 2 Jan"),
+		DropBox: dropBox[a].Download,
 	}
 	agentEmailT.Execute(w, data)
 
@@ -227,10 +282,17 @@ func dumpAllParticpants(table tabler, participants []participant) {
 	table.Render()
 }
 
-var toWriter = template.Must(template.ParseFiles("towriter.txt"))
+var toWriter = template.Must(template.ParseFiles("mail_to_writer.html"))
 
 func printLetterToWriter(w io.Writer, p participant) {
 	toWriter.Execute(w, p)
+}
+
+func mailLetterToWriter(p participant) {
+	log.Println("Sending mail to", p.Name)
+	buf := new(bytes.Buffer)
+	toWriter.Execute(buf, p)
+	trymail.SendEmail(p.Email, buf.String())
 }
 
 func printAgentNumbers(table tabler, agents map[string][]participant, participants []participant) {
@@ -402,6 +464,8 @@ func main() {
 	web := flag.Bool("web", false, "open a web server")
 	flag.Parse()
 
+	loadDropBox("dropbox.csv")
+
 	if *web {
 		http.HandleFunc("/", dumpHTML)
 		log.Println("listening on :8888")
@@ -424,8 +488,13 @@ func main() {
 
 	schedule(agents, particpants)
 
-	//for _, p := range particpants {
-	//	printLetterToWriter(os.Stdout, p)
+	//sendAllEmails := false
+	//if sendAllEmails {
+	//	for _, p := range particpants {
+	//		mailLetterToWriter(p)
+	//		time.Sleep(time.Second)
+	//	}
+	//	return
 	//}
 
 	dumpAgents(os.Stdout, agents)
